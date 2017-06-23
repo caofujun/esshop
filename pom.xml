@@ -22,7 +22,6 @@
 			<scope>test</scope>
 		</dependency>
 
-
 		<!--get set 插件 -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
