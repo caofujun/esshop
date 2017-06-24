@@ -15,13 +15,17 @@ import java.util.Set;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import net.sf.json.JSONArray;
+
 import org.nutz.json.Json;
 import org.nutz.json.JsonFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 
+import com.alibaba.fastjson.JSONObject;
 import com.shopping.core.domain.virtual.SysMap;
 import com.shopping.core.mv.JModelAndView;
 import com.shopping.core.query.support.IPageList;
@@ -210,6 +214,104 @@ import com.shopping.view.web.tools.StoreViewTools;
      mv.addObject("url", CommUtil.getURL(request) + "/index.htm");
      return mv;
    }
+   
+   @ResponseBody
+   @RequestMapping(value = "/goods_list2.htm", produces="application/json;charset=UTF-8")
+   public String goods_list_json(HttpServletRequest request, HttpServletResponse response, String gc_id, String store_id, String recommend, String currentPage, String orderBy, String orderType, String begin_price, String end_price)
+   {
+	   System.out.println("enter goods_list22222....");
+     UserGoodsClass ugc = this.userGoodsClassService.getObjById(
+       CommUtil.null2Long(gc_id));
+     response.setCharacterEncoding("utf-8");
+     //response.setContentType("");
+     String template = "default";
+     Store store = this.storeService
+       .getObjById(CommUtil.null2Long(store_id));
+     if (store != null) {
+       if ((store.getTemplate() != null) && (!store.getTemplate().equals(""))) {
+         template = store.getTemplate();
+       }
+       ModelAndView mv = new JModelAndView(template + "/goods_list.html", 
+         this.configService.getSysConfig(), 
+         this.userConfigService.getUserConfig(), 1, request, 
+         response);
+       GoodsQueryObject gqo = new GoodsQueryObject(currentPage, mv, 
+         orderBy, orderType);
+       gqo.addQuery("obj.goods_store.id", 
+         new SysMap("goods_store_id", 
+         store.getId()), "=");
+       if (ugc != null) {
+         Set<Long> ids = genericUserGcIds(ugc);
+         List ugc_list = new ArrayList();
+         for (Long g_id : ids) {
+           UserGoodsClass temp_ugc = this.userGoodsClassService
+             .getObjById(g_id);
+           ugc_list.add(temp_ugc);
+         }
+         gqo.addQuery("ugc", ugc, "obj.goods_ugcs", "member of");
+         for (int i = 0; i < ugc_list.size(); i++)
+           gqo.addQuery("ugc" + i, ugc_list.get(i), "obj.goods_ugcs", 
+             "member of", "or");
+       }
+       else {
+         ugc = new UserGoodsClass();
+         ugc.setClassName("全部商品");
+         mv.addObject("ugc", ugc);
+       }
+       if ((recommend != null) && (!recommend.equals(""))) {
+         gqo.addQuery("obj.goods_recommend", 
+           new SysMap("goods_recommend", Boolean.valueOf(CommUtil.null2Boolean(recommend))), 
+           "=");
+       }
+       gqo.setPageSize(Integer.valueOf(20));
+       if ((begin_price != null) && (!begin_price.equals(""))) {
+         gqo.addQuery("obj.store_price", 
+           new SysMap("begin_price", 
+           BigDecimal.valueOf(CommUtil.null2Double(begin_price))), 
+           ">=");
+       }
+       if ((end_price != null) && (!end_price.equals(""))) {
+         gqo.addQuery("obj.store_price", 
+           new SysMap("end_price", 
+           BigDecimal.valueOf(CommUtil.null2Double(end_price))), 
+           "<=");
+       }
+       IPageList pList = this.goodsService.list(gqo);
+       JSONArray arr = new JSONArray();
+       List goodsList = pList.getResult();
+       
+       if(goodsList != null){
+    	   for(int g=0 ;g<goodsList.size();g++) {
+    		   Goods good = (Goods)goodsList.get(g);
+    		   JSONObject json = new JSONObject();
+    		   json.put("name", good.getGoods_name());
+    		   json.put("price", good.getGoods_price());
+    		   arr.add(json);
+    	   }
+       }
+       return arr.toString();
+//       String url = this.configService.getSysConfig().getAddress();
+//       if ((url == null) || (url.equals(""))) {
+//         url = CommUtil.getURL(request);
+//       }
+//       CommUtil.saveIPageList2ModelAndView("", "", "", pList, mv);
+//       mv.addObject("ugc", ugc);
+//       mv.addObject("store", store);
+//       mv.addObject("recommend", recommend);
+//       mv.addObject("begin_price", begin_price);
+//       mv.addObject("end_price", end_price);
+//       mv.addObject("goodsViewTools", this.goodsViewTools);
+//       mv.addObject("storeViewTools", this.storeViewTools);
+//       mv.addObject("areaViewTools", this.areaViewTools);
+     }
+     
+     JSONObject ret = new JSONObject();
+     ret.put("code", -1);
+     ret.put("msg", "请求参数错误...");
+     return ret.toJSONString();
+   }
+   
+   
  
    private Set<Long> genericUserGcIds(UserGoodsClass ugc)
    {
